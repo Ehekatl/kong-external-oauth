@@ -18,6 +18,7 @@ local cjson = require "cjson.safe"
 local pl_stringx = require "pl.stringx"
 local http = require "resty.http"
 local crypto = require "crypto"
+local singletons = require "kong.singletons"
 
 local OAUTH_CALLBACK = "^%s/oauth2/callback(/?(\\?[^\\s]*)*)$"
 
@@ -39,7 +40,7 @@ function _M.run(conf)
 
     end
 
-    local callback_url = ngx.var.scheme .. "://" .. ngx.var.host ..  ":" .. ngx.var.server_port .. path_prefix .. "/oauth2/callback"
+    local callback_url = ngx.var.scheme .. "://" .. ngx.var.host .. path_prefix .. "/oauth2/callback"
 
     -- check if we're calling the callback endpoint
     if ngx.re.match(ngx.var.request_uri, string.format(OAUTH_CALLBACK, path_prefix)) then
@@ -56,58 +57,130 @@ function _M.run(conf)
                 return redirect_to_auth( conf, callback_url )
             end
 
-            -- Get user info
-            if not ngx.var.cookie_EOAuthUserInfo then
-                local httpc = http:new()
-                local res, err = httpc:request_uri(conf.user_url, {
-                    method = "GET",
-                    ssl_verify = false,
-                    headers = {
-                      ["Authorization"] = "Bearer " .. access_token,
-                    }
-                })
+            -- if not ngx.var.cookie_EOAuthUserInfo then
+            --     local httpc = http:new()
+            --     local res, err = httpc:request_uri(conf.user_url, {
+            --         method = "GET",
+            --         ssl_verify = false,
+            --         headers = {
+            --           ["Authorization"] = "Bearer " .. access_token,
+            --         }
+            --     })
+            --
+            --     if res then
+            --         -- redirect to auth if user result is invalid not 200
+            --         if res.status ~= 200 then
+            --             return redirect_to_auth( conf, callback_url )
+            --         end
+            --
+            --         local json = cjson.decode(res.body)
+            --
+            --         if conf.hosted_domain ~= "" and conf.email_key ~= "" then
+            --             if not pl_stringx.endswith(json[conf.email_key], conf.hosted_domain) then
+            --                 ngx.say("Hosted domain is not matching")
+            --                 ngx.exit(ngx.HTTP_UNAUTHORIZED)
+            --                 return
+            --             end
+            --         end
+            --
+            --         for i, key in ipairs(conf.user_keys) do
+            --             ngx.header["X-Oauth-".. key] = json[key]
+            --             ngx.req.set_header("X-Oauth-".. key, json[key])
+            --         end
+            --         ngx.header["X-Oauth-Token"] = access_token
+            --
+            --         if type(ngx.header["Set-Cookie"]) == "table" then
+            --             ngx.header["Set-Cookie"] = { "EOAuthUserInfo=0; Path=/;Max-Age=" .. conf.user_info_periodic_check .. ";HttpOnly", unpack(ngx.header["Set-Cookie"]) }
+            --         else
+            --             ngx.header["Set-Cookie"] = { "EOAuthUserInfo=0; Path=/;Max-Age=" .. conf.user_info_periodic_check .. ";HttpOnly", ngx.header["Set-Cookie"] }
+            --         end
+            --
+            --     else
+            --         ngx.say(err)
+            --         ngx.exit(ngx.HTTP_INTERNAL_SERVER_ERROR)
+            --         return
+            --     end
+            -- end
 
-                if res then
-                    -- redirect to auth if user result is invalid not 200
-                    if res.status ~= 200 then
-                        return redirect_to_auth( conf, callback_url )
-                    end
+            -- if not ngx.var.cookie_EOAuthUserInfo then
+            --   kong.log.debug("userinfo cookie expired, invalidate cache")
+            --   singletons.cache:invalidate("external_oauth_user_info")
+            -- end
 
-                    local json = cjson.decode(res.body)
+            local user_info, err = singletons.cache:get("external_oauth_user_info", { ttl = conf.user_info_periodic_check }, get_user_info, conf, access_token)
 
-                    if conf.hosted_domain ~= "" and conf.email_key ~= "" then
-                        if not pl_stringx.endswith(json[conf.email_key], conf.hosted_domain) then
-                            ngx.say("Hosted domain is not matching")
-                            ngx.exit(ngx.HTTP_UNAUTHORIZED)
-                            return
-                        end
-                    end
+            if err == "FETCH_FAILED" then
+                return redirect_to_auth( conf, callback_url )
+            elseif err == "INTERNAL_ERROR" then
+                kong.log.err("Something is wrong, this should not happen")
+                ngx.say("Something is wrong, this should not happen")
+                ngx.exit(ngx.HTTP_INTERNAL_SERVER_ERROR)
+            elseif err then
+                kong.log.err(err)
+                ngx.say(err)
+                ngx.exit(ngx.HTTP_INTERNAL_SERVER_ERROR)
+            end
 
-                    for i, key in ipairs(conf.user_keys) do
-                        ngx.header["X-Oauth-".. key] = json[key]
-                        ngx.req.set_header("X-Oauth-".. key, json[key])
-                    end
-                    ngx.header["X-Oauth-Token"] = access_token
+            -- sanity check, should never reach
+            if not user_info then
+              kong.log.err("User info is missing")
+              ngx.say("User info is missing")
+              -- redirect_to_auth( conf, callback_url )
+            end
 
-                    if type(ngx.header["Set-Cookie"]) == "table" then
-                        ngx.header["Set-Cookie"] = { "EOAuthUserInfo=0; Path=/;Max-Age=" .. conf.user_info_periodic_check .. ";HttpOnly", unpack(ngx.header["Set-Cookie"]) }
-                    else
-                        ngx.header["Set-Cookie"] = { "EOAuthUserInfo=0; Path=/;Max-Age=" .. conf.user_info_periodic_check .. ";HttpOnly", ngx.header["Set-Cookie"] }
-                    end
+            local json = cjson.decode(user_info)
 
-                else
-                    ngx.say(err)
-                    ngx.exit(ngx.HTTP_INTERNAL_SERVER_ERROR)
-                    return
+            if conf.hosted_domain ~= "" and conf.email_key ~= "" then
+                if not pl_stringx.endswith(json[conf.email_key], conf.hosted_domain) then
+                    ngx.say("Hosted domain is not matching")
+                    ngx.exit(ngx.HTTP_UNAUTHORIZED)
                 end
             end
 
+            for i, key in ipairs(conf.user_keys) do
+                ngx.header["X-Oauth-".. key] = json[key]
+                ngx.req.set_header("X-Oauth-".. key, json[key])
+            end
+            ngx.header["X-Oauth-Token"] = access_token
 
+            if type(ngx.header["Set-Cookie"]) == "table" then
+                ngx.header["Set-Cookie"] = { "EOAuthUserInfo=0; Path=/;Max-Age=" .. conf.user_info_periodic_check .. ";HttpOnly", unpack(ngx.header["Set-Cookie"]) }
+            else
+                ngx.header["Set-Cookie"] = { "EOAuthUserInfo=0; Path=/;Max-Age=" .. conf.user_info_periodic_check .. ";HttpOnly", ngx.header["Set-Cookie"] }
+            end
         else
             return redirect_to_auth( conf, callback_url )
         end
     end
+end
 
+function get_user_info(conf, access_token)
+
+  -- Get user info
+  local httpc = http:new()
+  local res, err = httpc:request_uri(conf.user_url, {
+      method = "GET",
+      ssl_verify = false,
+      headers = {
+        ["Authorization"] = "Bearer " .. access_token,
+      }
+  })
+
+  if err then
+      error(err)
+      return nil
+  end
+
+  if res then
+      -- redirect to auth if user result is invalid not 200
+      if res.status ~= 200 then
+        error("FETCH_FAILED")
+      end
+  else
+    error("INTERNAL_ERROR")
+  end
+
+  return res.body
 end
 
 function redirect_to_auth( conf, callback_url )
