@@ -57,57 +57,7 @@ function _M.run(conf)
                 return redirect_to_auth( conf, callback_url )
             end
 
-            -- if not ngx.var.cookie_EOAuthUserInfo then
-            --     local httpc = http:new()
-            --     local res, err = httpc:request_uri(conf.user_url, {
-            --         method = "GET",
-            --         ssl_verify = false,
-            --         headers = {
-            --           ["Authorization"] = "Bearer " .. access_token,
-            --         }
-            --     })
-            --
-            --     if res then
-            --         -- redirect to auth if user result is invalid not 200
-            --         if res.status ~= 200 then
-            --             return redirect_to_auth( conf, callback_url )
-            --         end
-            --
-            --         local json = cjson.decode(res.body)
-            --
-            --         if conf.hosted_domain ~= "" and conf.email_key ~= "" then
-            --             if not pl_stringx.endswith(json[conf.email_key], conf.hosted_domain) then
-            --                 ngx.say("Hosted domain is not matching")
-            --                 ngx.exit(ngx.HTTP_UNAUTHORIZED)
-            --                 return
-            --             end
-            --         end
-            --
-            --         for i, key in ipairs(conf.user_keys) do
-            --             ngx.header["X-Oauth-".. key] = json[key]
-            --             ngx.req.set_header("X-Oauth-".. key, json[key])
-            --         end
-            --         ngx.header["X-Oauth-Token"] = access_token
-            --
-            --         if type(ngx.header["Set-Cookie"]) == "table" then
-            --             ngx.header["Set-Cookie"] = { "EOAuthUserInfo=0; Path=/;Max-Age=" .. conf.user_info_periodic_check .. ";HttpOnly", unpack(ngx.header["Set-Cookie"]) }
-            --         else
-            --             ngx.header["Set-Cookie"] = { "EOAuthUserInfo=0; Path=/;Max-Age=" .. conf.user_info_periodic_check .. ";HttpOnly", ngx.header["Set-Cookie"] }
-            --         end
-            --
-            --     else
-            --         ngx.say(err)
-            --         ngx.exit(ngx.HTTP_INTERNAL_SERVER_ERROR)
-            --         return
-            --     end
-            -- end
-
-            -- if not ngx.var.cookie_EOAuthUserInfo then
-            --   kong.log.debug("userinfo cookie expired, invalidate cache")
-            --   singletons.cache:invalidate("external_oauth_user_info")
-            -- end
-
-            local user_info, err = singletons.cache:get("external_oauth_user_info", { ttl = conf.user_info_periodic_check }, get_user_info, conf, access_token)
+            local user_info, err = singletons.cache:get(access_token, { ttl = conf.user_info_periodic_check }, get_user_info, conf, access_token)
 
             if err == "FETCH_FAILED" then
                 return redirect_to_auth( conf, callback_url )
