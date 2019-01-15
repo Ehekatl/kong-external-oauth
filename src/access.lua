@@ -116,10 +116,10 @@ function get_user_info(conf, access_token)
       }
   })
 
-  if err then
-      error(err)
-      return nil
-  end
+  -- if err then
+  --     error(err)
+  --     return nil
+  -- end
 
   if res then
       -- redirect to auth if user result is invalid not 200

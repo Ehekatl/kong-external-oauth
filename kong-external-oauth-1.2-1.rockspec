@@ -1,5 +1,5 @@
 package = "kong-external-oauth"
-version = "1.2-0"
+version = "1.2-1"
 source = {
   url = "git://github.com/Ehekatl/kong-external-oauth"
 }
