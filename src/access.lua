@@ -59,9 +59,9 @@ function _M.run(conf)
 
             local user_info, err = singletons.cache:get(access_token, { ttl = conf.user_info_periodic_check }, get_user_info, conf, access_token)
 
-            if err == "FETCH_FAILED" then
+            if string.find(err,"FETCH_FAILED") then
                 return redirect_to_auth( conf, callback_url )
-            elseif err == "INTERNAL_ERROR" then
+            elseif string.find(err,"INTERNAL_ERROR") then
                 kong.log.err("Something is wrong, this should not happen")
                 ngx.say("Something is wrong, this should not happen")
                 ngx.exit(ngx.HTTP_INTERNAL_SERVER_ERROR)
