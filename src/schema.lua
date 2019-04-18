@@ -21,7 +21,8 @@ return {
     client_secret = {type = "string", required = true},
     scope = {type = "string", default = ""},
     user_keys = {type = "array", default = {"username", "email"}},
-    user_info_periodic_check = {type = "number", required = true, default = 60},
+    user_info_periodic_check = {type = "number", required = true, default = 600},
+    auth_token_expire_time = {type = "number", required = true, default = 259200},
     hosted_domain = {type = "string", default = ""},
     email_key = {type = "string", default = ""}
   }

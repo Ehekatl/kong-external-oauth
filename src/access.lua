@@ -49,7 +49,7 @@ function _M.run(conf)
         local encrypted_token = ngx.var.cookie_EOAuthToken
         -- check if we are authenticated already
         if encrypted_token then
-            ngx.header["Set-Cookie"] = "EOAuthToken=" .. encrypted_token .. "; path=/;Max-Age=3000;HttpOnly"
+            ngx.header["Set-Cookie"] = "EOAuthToken=" .. encrypted_token .. "; path=/;Max-Age=" .. conf.auth_token_expire_time .. ";HttpOnly"
 
             local access_token = decode_token(encrypted_token, conf)
             if not access_token then
@@ -59,23 +59,17 @@ function _M.run(conf)
 
             local user_info, err = singletons.cache:get(access_token, { ttl = conf.user_info_periodic_check }, get_user_info, conf, access_token)
 
-            if string.find(err,"FETCH_FAILED") then
-                return redirect_to_auth( conf, callback_url )
-            elseif string.find(err,"INTERNAL_ERROR") then
-                kong.log.err("Something is wrong, this should not happen")
-                ngx.say("Something is wrong, this should not happen")
-                ngx.exit(ngx.HTTP_INTERNAL_SERVER_ERROR)
-            elseif err then
+            if err then
+                singletons.cache:invalidate(access_token)
                 kong.log.err(err)
                 ngx.say(err)
-                ngx.exit(ngx.HTTP_INTERNAL_SERVER_ERROR)
             end
 
             -- sanity check, should never reach
             if not user_info then
               kong.log.err("User info is missing")
               ngx.say("User info is missing")
-              -- redirect_to_auth( conf, callback_url )
+              redirect_to_auth( conf, callback_url )
             end
 
             local json = cjson.decode(user_info)
