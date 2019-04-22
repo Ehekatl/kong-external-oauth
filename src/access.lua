@@ -49,7 +49,7 @@ function _M.run(conf)
         local encrypted_token = ngx.var.cookie_EOAuthToken
         -- check if we are authenticated already
         if encrypted_token then
-            ngx.header["Set-Cookie"] = "EOAuthToken=" .. encrypted_token .. "; path=/;Max-Age=" .. conf.auth_token_expire_time .. ";HttpOnly"
+            -- ngx.header["Set-Cookie"] = "EOAuthToken=" .. encrypted_token .. "; path=/;Max-Age=" .. conf.auth_token_expire_time .. ";HttpOnly"
 
             local access_token = decode_token(encrypted_token, conf)
             if not access_token then
@@ -176,7 +176,7 @@ function  handle_callback( conf, callback_url )
         end
 
 
-        ngx.header["Set-Cookie"] = "EOAuthToken="..encode_token( access_token, conf ) .. "; path=/;Max-Age=3000;HttpOnly"
+        ngx.header["Set-Cookie"] = "EOAuthToken="..encode_token( access_token, conf ) .. "; path=/;Max-Age=" .. conf.auth_token_expire_time .. ";HttpOnly"
         -- Support redirection back to your request if necessary
         local redirect_back = ngx.var.cookie_EOAuthRedirectBack
         if redirect_back then
