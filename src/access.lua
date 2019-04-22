@@ -62,13 +62,13 @@ function _M.run(conf)
             if err then
                 singletons.cache:invalidate(access_token)
                 kong.log.err(err)
-                ngx.say(err)
+                -- ngx.say(err)
             end
 
             -- sanity check, should never reach
             if not user_info then
               kong.log.err("User info is missing")
-              ngx.say("User info is missing")
+              -- ngx.say("User info is missing")
               redirect_to_auth( conf, callback_url )
             end
 
