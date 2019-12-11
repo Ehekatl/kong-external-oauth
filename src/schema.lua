@@ -1,29 +1,45 @@
-local url = require "socket.url"
 
-local function validate_url(value)
-  local parsed_url = url.parse(value)
-  if parsed_url.scheme and parsed_url.host then
-    parsed_url.scheme = parsed_url.scheme:lower()
-    if not (parsed_url.scheme == "http" or parsed_url.scheme == "https") then
-      return false, "Supported protocols are HTTP and HTTPS"
-    end
-  end
+-- Copyright 2016 Niko Usai
+-- Modifications Copyright (C) 2019 wanghaoyu@agora.io
 
-  return true
-end
+--    Licensed under the Apache License, Version 2.0 (the "License");
+--    you may not use this file except in compliance with the License.
+--    You may obtain a copy of the License at
+
+--        http://www.apache.org/licenses/LICENSE-2.0
+
+--    Unless required by applicable law or agreed to in writing, software
+--    distributed under the License is distributed on an "AS IS" BASIS,
+--    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+--    See the License for the specific language governing permissions and
+-- limitations under the License.
+
+local typedefs = require "kong.db.schema.typedefs"
 
 return {
+  name = "external-oauth",
   fields = {
-    authorize_url = {type = "url", required = true, func = validate_url},
-    token_url = {type = "url", required = true, func = validate_url},
-    user_url  = {type = "url", required = true, func = validate_url},
-    client_id = {type = "string", required = true},
-    client_secret = {type = "string", required = true},
-    scope = {type = "string", default = ""},
-    user_keys = {type = "array", default = {"username", "email"}},
-    user_info_periodic_check = {type = "number", required = true, default = 600},
-    auth_token_expire_time = {type = "number", required = true, default = 259200},
-    hosted_domain = {type = "string", default = ""},
-    email_key = {type = "string", default = ""}
-  }
+    {
+      config = {
+        type = "record",
+        fields = {
+          { authorize_url = typedefs.url{required = true}, },
+          { token_url = typedefs.url{required = true}, },
+          { user_url = typedefs.url{required = true}, },
+          { client_id = {type = "string", required = true}, },
+          { client_secret = {type = "string", required = true}, },
+          { scope = {type = "string"}, },
+          { user_keys = {type = "array",
+            default = {"username", "email"},
+          elements = {type = "string", }, }, },
+          { user_info_periodic_check = {type = "integer", default = 600}, },
+          { auth_token_expire_time = {type = "integer", default = 259200}, },
+          { hosted_domain = {type = "string"}, },
+          { email_key = {type = "string"}, },
+          { callback_schema = typedefs.protocol, },
+          { callback_port = typedefs.port, },
+        },
+      },
+    },
+  },
 }

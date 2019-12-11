@@ -1,5 +1,6 @@
 
 -- Copyright 2016 Niko Usai
+-- Modifications Copyright (C) 2019 wanghaoyu@agora.io
 
 --    Licensed under the Apache License, Version 2.0 (the "License");
 --    you may not use this file except in compliance with the License.
@@ -17,6 +18,11 @@ local BasePlugin = require "kong.plugins.base_plugin"
 local access = require "kong.plugins.external-oauth.access"
 
 local ExtOauthPlugin = BasePlugin:extend()
+
+-- Lower priority for proper request ordering with other plugin
+-- ref: https://docs.konghq.com/1.4.x/plugin-development/custom-logic/#plugins-execution-order
+ExtOauthPlugin.PRIORITY = 966
+ExtOauthPlugin.VERSION  = "1.3-0"
 
 function ExtOauthPlugin:new()
 	ExtOauthPlugin.super.new(self, "external-oauth")
